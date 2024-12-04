@@ -132,6 +132,11 @@ jobs:
             -e "s|url = \".*\"|url = \"https://github.com/PhilAtVisir/aws-signing-helper/releases/download/${VERSION}/rolesanywhere-credential-helper\"|" \
             -e "s/sha256 = \".*\"/sha256 = \"${BINARY_HASH}\"/" \
             shell.nix
+
+      - name: Remove file/folders
+        run: |
+          rm -rf release-assets
+          rm -rf result
   
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
