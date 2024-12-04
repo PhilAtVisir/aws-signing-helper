@@ -100,6 +100,26 @@ jobs:
             -e "s/vendorHash = \".*\"/vendorHash = \"${{ steps.hashes.outputs.vendor_hash }}\"/" \
             default.nix
 
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore: update rolesanywhere-credential-helper to ${{ needs.version_check.outputs.latest_version }}"
+          title: "chore: update rolesanywhere-credential-helper to ${{ needs.version_check.outputs.latest_version }}"
+          body: |
+            Updates rolesanywhere-credential-helper to ${{ needs.version_check.outputs.latest_version }}
+            
+            Changes:
+            - Version: ${{ needs.version_check.outputs.latest_version }}
+            - Source hash: ${{ steps.hashes.outputs.src_hash }}
+            - Vendor hash: ${{ steps.hashes.outputs.vendor_hash }}
+            
+            This PR was automatically created by the version check workflow.
+          branch: "update-rolesanywhere-helper"
+          delete-branch: true
+          base: "main"
+          labels: "dependencies,automated pr"
+          draft: false
+
       - name: Build with new version
         run: |
           set -x  # Enable debug output
@@ -117,7 +137,6 @@ jobs:
           path: result
 
       - name: Create and Upload Release Asset
-        if: github.event_name == 'release' && github.event.action == 'published'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version_check.outputs.latest_version }}
