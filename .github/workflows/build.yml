@@ -130,12 +130,12 @@ jobs:
           VERSION_CLEAN="${VERSION#v}"
 
           # Calculate binary hash
-          BINARY_HASH=$(nix-prefetch-url https://github.com/PhilAtVisir/aws-signing-helper/releases/download/${VERSION}/aws-signing-helper)
+          BINARY_HASH=$(nix-prefetch-url https://github.com/PhilAtVisir/aws-signing-helper/releases/download/${VERSION}/rolesanywhere-credential-helper)
           echo "binary_hash=${BINARY_HASH}" >> $GITHUB_OUTPUT
           
           sed -i \
             -e "s/version = \".*\"/version = \"$VERSION_CLEAN\"/" \
-            -e "s|url = \".*\"|url = \"https://github.com/PhilAtVisir/aws-signing-helper/releases/download/${VERSION}/aws-signing-helper\"|" \
+            -e "s|url = \".*\"|url = \"https://github.com/PhilAtVisir/aws-signing-helper/releases/download/${VERSION}/rolesanywhere-credential-helper\"|" \
             -e "s/sha256 = \".*\"/sha256 = \"${{ steps.hashes.outputs.binary_hash }}\"/" \
             shell.nix
   
