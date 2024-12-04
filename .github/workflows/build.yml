@@ -1,6 +1,8 @@
 name: "Release"
 
 on:
+  schedule:
+    - cron: '0 0 1 * *'  # Runs at 00:00 on the first day of every month
   workflow_dispatch:
   push:
     branches:
@@ -9,14 +11,44 @@ on:
     types:
       - "published"
 
-permissions: {}
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  release:
-    name: "Release"
+  version_check:
+    name: "Version Check"
     runs-on: "ubuntu-latest"
-    permissions:
-      contents: write
+    outputs:
+      is_new_version: ${{ steps.version_check.outputs.is_new_version }}
+      latest_version: ${{ steps.latest_release.outputs.latest_version }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Get latest release
+        id: latest_release
+        run: |
+          LATEST_VERSION=$(curl -s https://api.github.com/repos/aws/rolesanywhere-credential-helper/releases/latest | jq -r .tag_name)
+          echo "latest_version=${LATEST_VERSION}" >> $GITHUB_OUTPUT
+          echo "Latest version: ${LATEST_VERSION}"
+
+      - name: Check current version
+        id: version_check
+        run: |
+          CURRENT_VERSION=$(curl -s https://api.github.com/repos/PhilAtVisir/aws-signing-helper/releases/latest | jq -r .tag_name)
+          echo "current_version=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
+          echo "Current version: ${CURRENT_VERSION}"
+          if [ "${{ steps.latest_release.outputs.latest_version }}" != "v${CURRENT_VERSION}" ]; then
+            echo "is_new_version=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_new_version=false" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    if: needs.version_check.outputs.is_new_version == 'true'
+    needs: version_check
+    runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -26,13 +58,54 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Build
+      - name: Calculate new hashes
+        id: hashes
+        run: |
+          VERSION="${{ needs.version_check.outputs.latest_version }}"
+          VERSION_CLEAN="${VERSION#v}"  # Remove v prefix
+          
+          # Calculate source hash
+          SRC_HASH=$(nix-prefetch-url --unpack https://github.com/aws/rolesanywhere-credential-helper/archive/refs/tags/${VERSION}.tar.gz)
+          echo "src_hash=${SRC_HASH}" >> $GITHUB_OUTPUT
+          
+          # Calculate vendor hash
+          TEMP_NIX=$(mktemp)
+          cat > $TEMP_NIX << EOF
+          { pkgs ? import <nixpkgs> {} }:
+          pkgs.buildGoModule {
+            pname = "aws-signing-helper";
+            version = "${VERSION_CLEAN}";
+            src = pkgs.fetchFromGitHub {
+              owner = "aws";
+              repo = "rolesanywhere-credential-helper";
+              rev = "${VERSION}";
+              sha256 = "${SRC_HASH}";
+            };
+            vendorHash = "";
+          }
+          EOF
+          
+          VENDOR_HASH=$(nix-build $TEMP_NIX 2>&1 | grep "got:" | cut -d: -f2- | tr -d ' ')
+          echo "vendor_hash=${VENDOR_HASH}" >> $GITHUB_OUTPUT
+
+      - name: Update default.nix
+        run: |
+          VERSION="${{ needs.version_check.outputs.latest_version }}"
+          VERSION_CLEAN="${VERSION#v}"
+          
+          sed -i \
+            -e "s/version = \".*\"/version = \"$VERSION_CLEAN\"/" \
+            -e "s/rev = \".*\"/rev = \"$VERSION\"/" \
+            -e "s/sha256 = \".*\"/sha256 = \"${{ steps.hashes.outputs.src_hash }}\"/" \
+            -e "s/vendorHash = \".*\"/vendorHash = \"${{ steps.hashes.outputs.vendor_hash }}\"/" \
+            default.nix
+
+      - name: Build with new version
         run: |
           set -x  # Enable debug output
           nix-build default.nix
 
       - name: Prepare Release Assets
-        if: github.event_name == 'release' && github.event.action == 'published'
         run: |
           mkdir -p release-assets
           cp -L result/bin/* release-assets/
@@ -42,12 +115,12 @@ jobs:
         with:
           name: aws-signing-helper
           path: result
-        if: success()
 
-      - name: Upload Release Asset
-        uses: softprops/action-gh-release@v1
+      - name: Create and Upload Release Asset
         if: github.event_name == 'release' && github.event.action == 'published'
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.version_check.outputs.latest_version }}
           files: release-assets/*
           fail_on_unmatched_files: true
           generate_release_notes: true
