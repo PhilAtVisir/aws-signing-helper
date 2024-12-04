@@ -30,7 +30,13 @@ jobs:
         run: |
           set -x  # Enable debug output
           nix-build default.nix
-        
+
+      - name: Prepare Release Assets
+        if: github.event_name == 'release' && github.event.action == 'published'
+        run: |
+          mkdir -p release-assets
+          cp -L result/bin/* release-assets/
+          
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -42,7 +48,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         if: github.event_name == 'release' && github.event.action == 'published'
         with:
-          files: |
-            result/*
+          files: release-assets/*
           fail_on_unmatched_files: true
           generate_release_notes: true
