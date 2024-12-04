@@ -87,7 +87,7 @@ jobs:
           
           VENDOR_HASH=$(nix-build $TEMP_NIX 2>&1 | grep "got:" | cut -d: -f2- | tr -d ' ')
           echo "vendor_hash=${VENDOR_HASH}" >> $GITHUB_OUTPUT
-
+          
       - name: Update default.nix
         run: |
           VERSION="${{ needs.version_check.outputs.latest_version }}"
@@ -99,27 +99,6 @@ jobs:
             -e "s/sha256 = \".*\"/sha256 = \"${{ steps.hashes.outputs.src_hash }}\"/" \
             -e "s/vendorHash = \".*\"/vendorHash = \"${{ steps.hashes.outputs.vendor_hash }}\"/" \
             default.nix
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update rolesanywhere-credential-helper to ${{ needs.version_check.outputs.latest_version }}"
-          title: "chore: update rolesanywhere-credential-helper to ${{ needs.version_check.outputs.latest_version }}"
-          body: |
-            Updates rolesanywhere-credential-helper to ${{ needs.version_check.outputs.latest_version }}
-            
-            Changes:
-            - Version: ${{ needs.version_check.outputs.latest_version }}
-            - Source hash: ${{ steps.hashes.outputs.src_hash }}
-            - Vendor hash: ${{ steps.hashes.outputs.vendor_hash }}
-            
-            This PR was automatically created by the version check workflow.
-          branch: "update-rolesanywhere-helper"
-          delete-branch: true
-          base: "main"
-          labels: "dependencies,automated pr"
-          draft: false
 
       - name: Build with new version
         run: |
@@ -144,3 +123,39 @@ jobs:
           files: release-assets/*
           fail_on_unmatched_files: true
           generate_release_notes: true
+
+      - name: Update shell.nix
+        run: |
+          VERSION="${{ needs.version_check.outputs.latest_version }}"
+          VERSION_CLEAN="${VERSION#v}"
+
+          # Calculate binary hash
+          BINARY_HASH=$(nix-prefetch-url https://github.com/PhilAtVisir/aws-signing-helper/releases/download/${VERSION}/aws-signing-helper)
+          echo "binary_hash=${BINARY_HASH}" >> $GITHUB_OUTPUT
+          
+          sed -i \
+            -e "s/version = \".*\"/version = \"$VERSION_CLEAN\"/" \
+            -e "s|url = \".*\"|url = \"https://github.com/PhilAtVisir/aws-signing-helper/releases/download/${VERSION}/aws-signing-helper\"|" \
+            -e "s/sha256 = \".*\"/sha256 = \"${{ steps.hashes.outputs.binary_hash }}\"/" \
+            shell.nix
+  
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update rolesanywhere-credential-helper to ${{ needs.version_check.outputs.latest_version }}"
+          title: "chore: update rolesanywhere-credential-helper to ${{ needs.version_check.outputs.latest_version }}"
+          body: |
+            Updates rolesanywhere-credential-helper to ${{ needs.version_check.outputs.latest_version }}
+            
+            Changes:
+            - Version: ${{ needs.version_check.outputs.latest_version }}
+            - Source hash: ${{ steps.hashes.outputs.src_hash }}
+            - Vendor hash: ${{ steps.hashes.outputs.vendor_hash }}
+            
+            This PR was automatically created by the version check workflow.
+          branch: "update-rolesanywhere-helper"
+          delete-branch: true
+          base: "main"
+          labels: "dependencies,automated pr"
+          draft: false
