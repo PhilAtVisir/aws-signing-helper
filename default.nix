@@ -2,13 +2,13 @@
 
 pkgs.buildGoModule {
   pname = "aws-signing-helper";
-  version = "1.0.0";
+  version = "1.3.0";
 
   src = pkgs.fetchFromGitHub {
     owner = "aws";
     repo = "rolesanywhere-credential-helper";
     rev = "v1.3.0";
-    sha256 = "sha256-vY8ZJnNV5xt8qxp2sCLYoavcggjS/+LHJysREtCgCJE=";
+    sha256 = "1488l381449b4z3y5zyj121drax1v0ib0xhsmdy1prsmfck1k3xx";
   };
 
   vendorHash = "sha256-QKKgBIocJoGbfs78PxNBLBi4KTDPtSuhzvsb6OBhNWQ=";
