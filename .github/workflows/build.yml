@@ -31,9 +31,18 @@ jobs:
           set -x  # Enable debug output
           nix-build default.nix
         
-      - name: Upload to GitHub Releases
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: aws-signing-helper
           path: result
         if: success()
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        if: github.event_name == 'release' && github.event.action == 'published'
+        with:
+          files: |
+            result/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true
