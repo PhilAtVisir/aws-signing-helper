@@ -136,7 +136,7 @@ jobs:
           sed -i \
             -e "s/version = \".*\"/version = \"$VERSION_CLEAN\"/" \
             -e "s|url = \".*\"|url = \"https://github.com/PhilAtVisir/aws-signing-helper/releases/download/${VERSION}/rolesanywhere-credential-helper\"|" \
-            -e "s/sha256 = \".*\"/sha256 = \"${{BINARY_HASH}}\"/" \
+            -e "s/sha256 = \".*\"/sha256 = \"${BINARY_HASH}\"/" \
             shell.nix
   
       - name: Create Pull Request
