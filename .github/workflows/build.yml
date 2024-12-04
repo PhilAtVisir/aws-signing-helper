@@ -103,6 +103,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore: update rolesanywhere-credential-helper to ${{ needs.version_check.outputs.latest_version }}"
           title: "chore: update rolesanywhere-credential-helper to ${{ needs.version_check.outputs.latest_version }}"
           body: |
