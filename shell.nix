@@ -8,7 +8,7 @@ let
       url = "https://github.com/PhilAtVisir/aws-signing-helper/releases/download/v1.3.0/rolesanywhere-credential-helper";
       # You can get the hash by trying to build with an incorrect hash first
       # Nix will tell you the correct hash
-      sha256 = ""; # Replace with actual hash from the release
+      sha256 = "0aw3dicvz2wizc645cyxw6p53jah2gd67mxjjdf30qnh3hfn5hg7"; # Replace with actual hash from the release
     };
     
     dontUnpack = true;
