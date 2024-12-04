@@ -13,6 +13,9 @@ pkgs.buildGoModule {
 
   vendorHash = "sha256-QKKgBIocJoGbfs78PxNBLBi4KTDPtSuhzvsb6OBhNWQ=";
 
+  # Disable tests since they require /bin/bash
+  doCheck = false;
+
   meta = with pkgs.lib; {
     description = "AWS Signing Helper for IAM Roles Anywhere";
     homepage = "https://github.com/aws/rolesanywhere-credential-helper";
