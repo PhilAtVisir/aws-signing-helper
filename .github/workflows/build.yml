@@ -23,9 +23,9 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: nix-fmt
+      - name: nix-fmt-rfc-style
         run: |
-          echo "default.nix" | nix-shell -p nixfmt --run 'xargs nixfmt'
+          echo "default.nix" | nix-shell -p nixfmt-rfc-style --run 'xargs nixfmt'
 
       - name: nix-editorconfig
         run: |
