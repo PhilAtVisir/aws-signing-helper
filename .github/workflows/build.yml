@@ -43,6 +43,9 @@ jobs:
     if: needs.version_check.outputs.is_new_version == 'true'
     needs: version_check
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: ['x86_64-linux', 'aarch64-linux']
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -51,6 +54,14 @@ jobs:
         uses: cachix/install-nix-action@v27
         with:
           nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            extra-platforms = aarch64-linux x86_64-linux
+
+      - name: Setup QEMU
+        if: matrix.arch == 'aarch64-linux'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
 
       - name: Calculate new hashes
         id: hashes
@@ -97,17 +108,19 @@ jobs:
       - name: Build with new version
         run: |
           set -x  # Enable debug output
-          nix-build default.nix
+          nix-build default.nix --arg system \"${{ matrix.arch }}\"
 
       - name: Prepare Release Assets
         run: |
           mkdir -p release-assets
           cp -L result/bin/* release-assets/
+          # Rename the binary to include architecture
+          mv release-assets/rolesanywhere-credential-helper release-assets/rolesanywhere-credential-helper-${{ matrix.arch }}
           
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aws-signing-helper
+          name: aws_signing_helper_${{ matrix.arch }}
           path: result
 
       - name: Create and Upload Release Asset
