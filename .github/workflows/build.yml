@@ -108,7 +108,7 @@ jobs:
       - name: Build with new version
         run: |
           set -x  # Enable debug output
-          nix-build default.nix --arg system \"${{ matrix.arch }}\"
+          nix-build build.nix --arg system \"${{ matrix.arch }}\"
 
       - name: Prepare Release Assets
         run: |
