@@ -127,7 +127,6 @@ jobs:
           
           sed -i \
             -e "s/version = \".*\"/version = \"$VERSION_CLEAN\"/" \
-            -e "s/rev = \".*\"/rev = \"$VERSION\"/" \
             -e "s/sha256 = \".*\"/sha256 = \"${{ steps.hashes.outputs.src_hash }}\"/" \
             -e "s/vendorHash = \".*\"/vendorHash = \"${{ steps.hashes.outputs.vendor_hash }}\"/" \
             default.nix
