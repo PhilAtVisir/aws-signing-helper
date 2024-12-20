@@ -5,6 +5,8 @@ on:
     - cron: '0 0 1 * *'  # Runs at 00:00 on the first day of every month
   workflow_dispatch:
   push:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -39,7 +41,7 @@ jobs:
 
   version_check:
     needs: format
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    # if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     name: "Version Check"
     runs-on: "ubuntu-latest"
     outputs:
@@ -90,33 +92,31 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Install nix-prefetch-git
-        run: nix-env -iA nixpkgs.nix-prefetch-git
-
       - name: Calculate new hashes
         id: hashes
         run: |
-          VERSION="${{ needs.version_check.outputs.latest_version }}"
-          VERSION_CLEAN="${VERSION#v}"
-          
-          # Calculate source hash
-          SRC_HASH=$(nix-prefetch-github --rev ${VERSION} aws rolesanywhere-credential-helper | jq -r .hash)
-          echo "src_hash=${SRC_HASH}" >> $GITHUB_OUTPUT
-                   
-          # Calculate build hash
-          TEMP_NIX=$(mktemp)
-          echo '{ pkgs ? import <nixpkgs> {} }: with pkgs; buildGoModule { pname = "aws-signing-helper"; version = "'${VERSION_CLEAN}'"; src = fetchFromGitHub { owner = "aws"; repo = "rolesanywhere-credential-helper"; rev = "'${VERSION}'"; hash = "'${SRC_HASH}'"; }; vendorHash = ""; }' > $TEMP_NIX
-          
-          # Capture build output and extract hash
-          BUILD_OUTPUT=$(nix-build $TEMP_NIX 2>&1 || true)
-          if echo "$BUILD_OUTPUT" | grep -q "got:"; then
-            VENDOR_HASH=$(echo "$BUILD_OUTPUT" | grep "got:" | cut -d: -f2- | tr -d ' ')
-            echo "vendor_hash=${VENDOR_HASH}" >> $GITHUB_OUTPUT
-          else
-            echo "Failed to extract vendor hash from output:"
-            echo "$BUILD_OUTPUT"
-            exit 1
-          fi
+          nix-shell -p nix-prefetch-github jq --run "
+            VERSION=\"${{ needs.version_check.outputs.latest_version }}\"
+            VERSION_CLEAN=\"\${VERSION#v}\"
+            
+            # Calculate source hash
+            SRC_HASH=\$(nix-prefetch-github --rev \${VERSION} aws rolesanywhere-credential-helper | jq -r .hash)
+            echo \"src_hash=\${SRC_HASH}\" >> \$GITHUB_OUTPUT
+            
+            # Calculate vendor hash
+            TEMP_NIX=\$(mktemp)
+            echo '{ pkgs ? import <nixpkgs> {} }: with pkgs; buildGoModule { pname = \"aws-signing-helper\"; version = \"'\${VERSION_CLEAN}'\"; src = fetchFromGitHub { owner = \"aws\"; repo = \"rolesanywhere-credential-helper\"; rev = \"'\${VERSION}'\"; hash = \"'\${SRC_HASH}'\"; }; vendorHash = \"\"; }' > \$TEMP_NIX
+            
+            BUILD_OUTPUT=\$(nix-build \$TEMP_NIX 2>&1 || true)
+            if echo \"\$BUILD_OUTPUT\" | grep -q \"got:\"; then
+              VENDOR_HASH=\$(echo \"\$BUILD_OUTPUT\" | grep \"got:\" | cut -d: -f2- | tr -d ' ')
+              echo \"vendor_hash=\${VENDOR_HASH}\" >> \$GITHUB_OUTPUT
+            else
+              echo \"Failed to extract vendor hash from output:\"
+              echo \"\$BUILD_OUTPUT\"
+              exit 1
+            fi
+          "
 
       - name: Update default.nix
         run: |
@@ -164,8 +164,9 @@ jobs:
 
       - name: Install tools
         run: |
-          nix-env -iA nixpkgs.nix-prefetch-github
-          nix-env -iA nixpkgs.go
+          nix-env -iA nixpkgs.nix-prefetch-github -f '<nixpkgs>'
+          nix-env -iA nixpkgs.nix-prefetch-git -f '<nixpkgs>'
+          nix-env -iA nixpkgs.go -f '<nixpkgs>'
 
       - name: Setup QEMU
         if: matrix.arch == 'aarch64-linux'
