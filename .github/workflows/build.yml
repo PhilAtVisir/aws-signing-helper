@@ -97,28 +97,23 @@ jobs:
           VERSION_CLEAN="${VERSION#v}"
           
           # Calculate source hash
-          SRC_HASH=$(nix-prefetch-url --unpack https://github.com/aws/rolesanywhere-credential-helper/archive/refs/tags/${VERSION}.tar.gz)
+          SRC_HASH=$(nix-prefetch-github --rev ${VERSION} aws rolesanywhere-credential-helper | jq -r .hash)
           echo "src_hash=${SRC_HASH}" >> $GITHUB_OUTPUT
-          
-          # Calculate vendor hash
+                   
+          # Calculate build hash
           TEMP_NIX=$(mktemp)
-          cat > $TEMP_NIX << EOF
-          { pkgs ? import <nixpkgs> {} }:
-          pkgs.buildGoModule {
-            pname = "aws-signing-helper";
-            version = "${VERSION_CLEAN}";
-            src = pkgs.fetchFromGitHub {
-              owner = "aws";
-              repo = "rolesanywhere-credential-helper";
-              rev = "v${VERSION}";
-              hash = "sha256-${SRC_HASH}";
-            };
-            vendorHash = "";
-          }
-          EOF
+          echo '{ pkgs ? import <nixpkgs> {} }: with pkgs; buildGoModule { pname = "aws-signing-helper"; version = "'${VERSION_CLEAN}'"; src = fetchFromGitHub { owner = "aws"; repo = "rolesanywhere-credential-helper"; rev = "'${VERSION}'"; hash = "'${SRC_HASH}'"; }; vendorHash = ""; }' > $TEMP_NIX
           
-          VENDOR_HASH=$(nix-build $TEMP_NIX 2>&1 | grep "got:" | cut -d: -f2- | tr -d ' ')
-          echo "vendor_hash=${VENDOR_HASH}" >> $GITHUB_OUTPUT
+          # Capture build output and extract hash
+          BUILD_OUTPUT=$(nix-build $TEMP_NIX 2>&1 || true)
+          if echo "$BUILD_OUTPUT" | grep -q "got:"; then
+            VENDOR_HASH=$(echo "$BUILD_OUTPUT" | grep "got:" | cut -d: -f2- | tr -d ' ')
+            echo "vendor_hash=${VENDOR_HASH}" >> $GITHUB_OUTPUT
+          else
+            echo "Failed to extract vendor hash from output:"
+            echo "$BUILD_OUTPUT"
+            exit 1
+          fi
 
       - name: Update default.nix
         run: |
@@ -127,8 +122,8 @@ jobs:
           
           sed -i \
             -e "s/version = \".*\"/version = \"$VERSION_CLEAN\"/" \
-            -e "s/hash = \".*\"/hash = \"sha256:${{ steps.hashes.outputs.src_hash }}\"/" \
-            -e "s/vendorHash = \".*\"/vendorHash = \"sha256-${{ steps.hashes.outputs.vendor_hash }}\"/" \
+            -e "s/hash = \".*\"/hash = \"${{ steps.hashes.outputs.src_hash }}\"/" \
+            -e "s/vendorHash = \".*\"/vendorHash = \"${{ steps.hashes.outputs.vendor_hash }}\"/" \
             default.nix
 
       - name: Upload updated default.nix
@@ -160,6 +155,14 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
           extra_nix_config: |
             extra-platforms = aarch64-linux x86_64-linux
+
+      - name: Install nix-prefetch-git
+        run: nix-env -iA nixpkgs.nix-prefetch-git
+
+      - name: Install tools
+        run: |
+          nix-env -iA nixpkgs.nix-prefetch-github
+          nix-env -iA nixpkgs.go
 
       - name: Setup QEMU
         if: matrix.arch == 'aarch64-linux'
