@@ -34,7 +34,7 @@ jobs:
       - name: Upload updated default.nix
         uses: actions/upload-artifact@v4
         with:
-          name: default-nix
+          name: formatted-default-nix
           path: default.nix
 
   version_check:
@@ -82,7 +82,7 @@ jobs:
       - name: Download updated default.nix
         uses: actions/download-artifact@v4
         with:
-          name: default-nix
+          name: formatted-default-nix
           path: .
 
       - name: Install Nix
@@ -110,8 +110,8 @@ jobs:
             src = pkgs.fetchFromGitHub {
               owner = "aws";
               repo = "rolesanywhere-credential-helper";
-              rev = "${VERSION}";
-              sha256 = "${SRC_HASH}";
+              rev = "v${VERSION}";
+              hash = "${SRC_HASH}";
             };
             vendorHash = "";
           }
@@ -127,14 +127,14 @@ jobs:
           
           sed -i \
             -e "s/version = \".*\"/version = \"$VERSION_CLEAN\"/" \
-            -e "s/sha256 = \".*\"/sha256 = \"${{ steps.hashes.outputs.src_hash }}\"/" \
+            -e "s/hash = \".*\"/hash = \"${{ steps.hashes.outputs.src_hash }}\"/" \
             -e "s/vendorHash = \".*\"/vendorHash = \"${{ steps.hashes.outputs.vendor_hash }}\"/" \
             default.nix
 
       - name: Upload updated default.nix
         uses: actions/upload-artifact@v4
         with:
-          name: default-nix
+          name: hashed-default-nix
           path: default.nix
 
   build:
@@ -151,7 +151,7 @@ jobs:
       - name: Download updated default.nix
         uses: actions/download-artifact@v4
         with:
-          name: default-nix
+          name: hashed-default-nix
           path: .
 
       - name: Install Nix
