@@ -90,6 +90,9 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
+      - name: Install nix-prefetch-git
+        run: nix-env -iA nixpkgs.nix-prefetch-git
+
       - name: Calculate new hashes
         id: hashes
         run: |
