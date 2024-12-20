@@ -111,7 +111,7 @@ jobs:
               owner = "aws";
               repo = "rolesanywhere-credential-helper";
               rev = "v${VERSION}";
-              hash = "${SRC_HASH}";
+              hash = "sha256-${SRC_HASH}";
             };
             vendorHash = "";
           }
@@ -127,8 +127,8 @@ jobs:
           
           sed -i \
             -e "s/version = \".*\"/version = \"$VERSION_CLEAN\"/" \
-            -e "s/hash = \".*\"/hash = \"${{ steps.hashes.outputs.src_hash }}\"/" \
-            -e "s/vendorHash = \".*\"/vendorHash = \"${{ steps.hashes.outputs.vendor_hash }}\"/" \
+            -e "s/hash = \".*\"/hash = \"sha256:${{ steps.hashes.outputs.src_hash }}\"/" \
+            -e "s/vendorHash = \".*\"/vendorHash = \"sha256-${{ steps.hashes.outputs.vendor_hash }}\"/" \
             default.nix
 
       - name: Upload updated default.nix
