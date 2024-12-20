@@ -94,29 +94,42 @@ jobs:
 
       - name: Calculate new hashes
         id: hashes
+        env:
+          VERSION: ${{ needs.version_check.outputs.latest_version }}
         run: |
-          nix-shell -p nix-prefetch-github jq --run "
-            VERSION=\"${{ needs.version_check.outputs.latest_version }}\"
-            VERSION_CLEAN=\"\${VERSION#v}\"
-            
+          VERSION_CLEAN="${VERSION#v}"
+          export VERSION
+          export VERSION_CLEAN
+          
+          # Create a temporary file to store outputs
+          TEMP_OUTPUT=$(mktemp)
+          
+          nix-shell -p nix-prefetch-github jq --command "
+            echo \"VERSION=\$VERSION\"
             # Calculate source hash
-            SRC_HASH=\$(nix-prefetch-github --rev \${VERSION} aws rolesanywhere-credential-helper | jq -r .hash)
-            echo \"src_hash=\${SRC_HASH}\" >> \$GITHUB_OUTPUT
+            SRC_HASH=\$(nix-prefetch-github aws rolesanywhere-credential-helper --rev \$VERSION | jq -r .hash)
+            echo \"SRC_HASH=\$SRC_HASH\" >> $TEMP_OUTPUT
             
             # Calculate vendor hash
             TEMP_NIX=\$(mktemp)
-            echo '{ pkgs ? import <nixpkgs> {} }: with pkgs; buildGoModule { pname = \"aws-signing-helper\"; version = \"'\${VERSION_CLEAN}'\"; src = fetchFromGitHub { owner = \"aws\"; repo = \"rolesanywhere-credential-helper\"; rev = \"'\${VERSION}'\"; hash = \"'\${SRC_HASH}'\"; }; vendorHash = \"\"; }' > \$TEMP_NIX
+            echo '{ pkgs ? import <nixpkgs> {} }: with pkgs; buildGoModule { pname = \"aws-signing-helper\"; version = \"'\$VERSION_CLEAN'\"; src = fetchFromGitHub { owner = \"aws\"; repo = \"rolesanywhere-credential-helper\"; rev = \"'\$VERSION'\"; hash = \"'\$SRC_HASH'\"; }; vendorHash = \"\"; }' > \$TEMP_NIX
             
             BUILD_OUTPUT=\$(nix-build \$TEMP_NIX 2>&1 || true)
             if echo \"\$BUILD_OUTPUT\" | grep -q \"got:\"; then
               VENDOR_HASH=\$(echo \"\$BUILD_OUTPUT\" | grep \"got:\" | cut -d: -f2- | tr -d ' ')
-              echo \"vendor_hash=\${VENDOR_HASH}\" >> \$GITHUB_OUTPUT
+              echo \"VENDOR_HASH=\$VENDOR_HASH\" >> $TEMP_OUTPUT
             else
               echo \"Failed to extract vendor hash from output:\"
               echo \"\$BUILD_OUTPUT\"
               exit 1
             fi
           "
+          
+          # Read values from temp file and set outputs
+          source $TEMP_OUTPUT
+          echo "src_hash=$SRC_HASH" >> $GITHUB_OUTPUT
+          echo "vendor_hash=$VENDOR_HASH" >> $GITHUB_OUTPUT
+          rm $TEMP_OUTPUT
 
       - name: Update default.nix
         run: |
@@ -124,9 +137,9 @@ jobs:
           VERSION_CLEAN="${VERSION#v}"
           
           sed -i \
-            -e "s/version = \".*\"/version = \"$VERSION_CLEAN\"/" \
-            -e "s/hash = \".*\"/hash = \"${{ steps.hashes.outputs.src_hash }}\"/" \
-            -e "s/vendorHash = \".*\"/vendorHash = \"${{ steps.hashes.outputs.vendor_hash }}\"/" \
+            -e "s|version = \".*\"|version = \"$VERSION_CLEAN\"|" \
+            -e "s|hash = \".*\"|hash = \"${{ steps.hashes.outputs.src_hash }}\"|" \
+            -e "s|vendorHash = \".*\"|vendorHash = \"${{ steps.hashes.outputs.vendor_hash }}\"|" \
             default.nix
 
       - name: Upload updated default.nix
@@ -158,15 +171,6 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
           extra_nix_config: |
             extra-platforms = aarch64-linux x86_64-linux
-
-      - name: Install nix-prefetch-git
-        run: nix-env -iA nixpkgs.nix-prefetch-git
-
-      - name: Install tools
-        run: |
-          nix-env -iA nixpkgs.nix-prefetch-github -f '<nixpkgs>'
-          nix-env -iA nixpkgs.nix-prefetch-git -f '<nixpkgs>'
-          nix-env -iA nixpkgs.go -f '<nixpkgs>'
 
       - name: Setup QEMU
         if: matrix.arch == 'aarch64-linux'
