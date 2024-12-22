@@ -151,18 +151,7 @@ jobs:
   build:
     needs: [version_check, update_nix]
     if: needs.version_check.outputs.is_new_version == 'true'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x86_64-linux
-          - os: ubuntu-latest
-            arch: aarch64-linux
-          - os: macos-latest
-            arch: x86_64-darwin
-          - os: macos-latest
-            arch: aarch64-darwin
+    runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -177,31 +166,23 @@ jobs:
         uses: cachix/install-nix-action@v27
         with:
           nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            extra-platforms = aarch64-linux x86_64-linux aarch64-darwin x86_64-darwin
-
-      - name: Setup QEMU
-        if: contains(matrix.arch, 'aarch64') && matrix.os == 'ubuntu-latest'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Build with new version
         run: |
           set -x  # Enable debug output
-          nix-build build.nix --arg system \"${{ matrix.arch }}\"
+          nix-build build.nix
 
       - name: Prepare Release Assets
         run: |
           mkdir -p release-assets
           cp -L result/bin/* release-assets/
           # Rename the binary to include architecture
-          mv release-assets/aws_signing_helper release-assets/aws_signing_helper_${{ matrix.arch }}
+          mv release-assets/aws_signing_helper release-assets/aws_signing_helper
           
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aws_signing_helper_${{ matrix.arch }}
+          name: aws_signing_helper
           path: release-assets
 
       - name: Create and Upload Release Asset
@@ -211,6 +192,19 @@ jobs:
           files: release-assets/*
           fail_on_unmatched_files: true
           generate_release_notes: true
+
+      - name: Remove file/folders
+        run: |
+          rm -rf release-assets
+          rm -rf result
+
+  create_pr:
+    needs: [version_check, update_nix, build]
+    if: needs.version_check.outputs.is_new_version == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
       - name: Update shell.nix
         run: |
@@ -223,11 +217,6 @@ jobs:
             -e "s|v[0-9.]*/aws_signing_helper|${VERSION}/aws_signing_helper|" \
             shell.nix
 
-      - name: Remove file/folders
-        run: |
-          rm -rf release-assets
-          rm -rf result
-  
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
         with:
@@ -239,8 +228,8 @@ jobs:
             
             Changes:
             - Version: ${{ needs.version_check.outputs.latest_version }}
-            - Source hash: ${{ steps.hashes.outputs.src_hash }}
-            - Vendor hash: ${{ steps.hashes.outputs.vendor_hash }}
+            - Source hash: ${{ needs.update_nix.outputs.src_hash }}
+            - Vendor hash: ${{ needs.update_nix.outputs.vendor_hash }}
             
             This PR was automatically created by the version check workflow.
           branch: "update-rolesanywhere-helper"
