@@ -176,8 +176,6 @@ jobs:
         run: |
           mkdir -p release-assets
           cp -L result/bin/* release-assets/
-          # Rename the binary to include architecture
-          mv release-assets/aws_signing_helper release-assets/aws_signing_helper
           
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
